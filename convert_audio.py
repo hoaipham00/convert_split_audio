@@ -27,10 +27,11 @@ class ConvertSplitAudio:
 
     def conver_file_folder_to_wav(self):
         all_file_names = os.listdir(self.src)
+        type_audio_format = (".mp3", ".wav", ".wma", ".flac", ".alac", ".ogg", ".aiff")
         for each_file in all_file_names:
-            if (any(word in each_file for word in (".mp3", "wav"))):
+            if (any(word in each_file for word in type_audio_format)):
                 src_file = f'{self.src}/{each_file}'
-                rename_file = each_file.replace('.mp3','')
+                rename_file = each_file[:each_file.index(".")]
                 dst_file = f'{self.dst_wav}/{rename_file}'
                 self.convert_file_to_wav(src_file, dst_file)
 

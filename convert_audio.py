@@ -22,13 +22,13 @@ class ConvertSplitAudio:
         self.chunk_length_ms = chunk_length_ms
 
     def convert_file_to_wav(self, src_file_path, dst_file_path):
-        sound = AudioSegment.from_mp3(src_file_path)
+        sound = AudioSegment.from_file(src_file_path)
         sound.export(f'{dst_file_path}.wav', format="wav")
 
     def conver_file_folder_to_wav(self):
         all_file_names = os.listdir(self.src)
         for each_file in all_file_names:
-            if ('.mp3' in each_file):
+            if (any(word in each_file for word in (".mp3", "wav"))):
                 src_file = f'{self.src}/{each_file}'
                 rename_file = each_file.replace('.mp3','')
                 dst_file = f'{self.dst_wav}/{rename_file}'
@@ -55,14 +55,13 @@ class ConvertSplitAudio:
             data.append(data_chunk)
         self.create_path_file(f'{folder_dst}/{file_name_refactor}.csv', data)
 
-    def read_all_file_folder(self):
+    def split_all_audio_to_frame(self):
         all_file_names = os.listdir(self.dst_wav)
         for each_file in all_file_names:
             if ('.wav' in each_file):
                 file_name = each_file.replace('.wav','') + "_split"
                 chunk_length_ms = 5000
                 new_dst_folder = self.dst_chunk + '/' + file_name
-                print(new_dst_folder)
                 if os.path.exists(new_dst_folder) is False:
                     os.makedirs(new_dst_folder)
                 self.process_audio(each_file, self.dst_wav + '/' + each_file, new_dst_folder)
@@ -73,6 +72,6 @@ if __name__ == '__main__':
     convert_split = ConvertSplitAudio(src,dst_wav, dst_chunk, 5000)
     print("Please wait.....")
     convert_split.conver_file_folder_to_wav()
-    convert_split.read_all_file_folder()
+    convert_split.split_all_audio_to_frame()
     print("Completed")
 

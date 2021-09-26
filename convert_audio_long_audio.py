@@ -8,9 +8,9 @@ import magic
 from termcolor import colored
 
 
-src = '/home/lenovo/Desktop/convert_audio_2/music'
-dst_wav = '/home/lenovo/Desktop/convert_audio_2/convert_to_wav'
-dst_chunk = '/home/lenovo/Desktop/convert_audio_2/split_5_seconds'
+src = '/home/lenovo/Desktop/convert_audio/music'
+dst_wav = '/home/lenovo/Desktop/convert_audio/convert_to_wav'
+dst_chunk = '/home/lenovo/Desktop/convert_audio/split_5_seconds'
 chunk_length_seconds = 5 #seconds
 chunk_big_length_seconds = 3600 #seconds
 
@@ -68,10 +68,10 @@ class ConvertSplitAudio:
 
 
     #Process for audio has duration <= 30 minutes 
-    def process_audio(self, file_name, src_path, folder_dst):
+    def process_audio_short_audio(self, file_name, src_path, folder_dst):
         print(src_path)
         myaudio = AudioSegment.from_file(src_path, "wav") 
-        chunks = make_chunks(myaudio, self.chunk_length_seconds)
+        chunks = make_chunks(myaudio, self.chunk_length_seconds*1000)
         file_name_refactor = file_name.replace('.wav','')
         data = []
         for i, chunk in enumerate(chunks):
@@ -83,7 +83,7 @@ class ConvertSplitAudio:
         self.create_path_file(f'{folder_dst}/{file_name_refactor}.csv', data)
     
     #Process to audio has long duration
-    def process_audio_faster(self, file_name, src_path, folder_dst):
+    def process_audio_long_audio(self, file_name, src_path, folder_dst):
         file_name_refactor = file_name.replace('.wav','')
         chunk_name = f'{folder_dst}/{file_name_refactor}'
         command = f'ffmpeg -i {src_path} -f segment -segment_time {self.chunk_length_seconds} -c copy {chunk_name}_split%04d.wav'
@@ -104,7 +104,7 @@ class ConvertSplitAudio:
                 new_dst_folder = self.dst_chunk + '/' + file_name
                 if os.path.exists(new_dst_folder) is False:
                     os.makedirs(new_dst_folder)
-                self.process_audio_faster(each_file, self.dst_wav + '/' + each_file, new_dst_folder)
+                self.process_audio_long_audio(each_file, self.dst_wav + '/' + each_file, new_dst_folder)
 
     def split_all_audio_to_frame_short_audio(self):
         print(colored("Starting split chunk.....", "yellow"))
@@ -115,7 +115,7 @@ class ConvertSplitAudio:
                 new_dst_folder = self.dst_chunk + '/' + file_name
                 if os.path.exists(new_dst_folder) is False:
                     os.makedirs(new_dst_folder)
-                self.process_audio(each_file, self.dst_wav + '/' + each_file, new_dst_folder)
+                self.process_audio_short_audio(each_file, self.dst_wav + '/' + each_file, new_dst_folder)
 
     def full_pipeline_process_short_audio(self):
         self.convert_file_folder_to_wav_short_audio()
@@ -127,7 +127,7 @@ class ConvertSplitAudio:
 
 
 if __name__ == '__main__':
-    convert_split = ConvertSplitAudio(src,dst_wav, dst_chunk, chunk_big_length_seconds, chunk_length_seconds)
+    convert_split = ConvertSplitAudio(src, dst_wav, dst_chunk, chunk_big_length_seconds, chunk_length_seconds)
     print(colored("Please wait.....", "green"))
     print(colored("..............................................................", "green"))
     convert_split.full_pipeline_process_long_audio()

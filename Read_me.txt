@@ -4,5 +4,7 @@ Requiriment: please install
     magic:
     AudioSegment
     csv
+    audioread
+    mutagen
 To run: python3 convert_audio.py
     

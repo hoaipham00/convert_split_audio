@@ -126,7 +126,7 @@ if __name__ == '__main__':
     print(colored("Please wait.....", "green"))
     print(colored("..............................................................", "green"))
     convert_split.convert_file_folder_to_wav()
-    # convert_split.split_all_audio_to_frame()
+    convert_split.split_all_audio_to_frame()
     print(colored("..............................................................", "green"))
     print(colored('Completed','green'))
 

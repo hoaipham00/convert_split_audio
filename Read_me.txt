@@ -10,7 +10,7 @@ To run: python3 convert_audio_long_audio.py
 
 Overview:
 
-Purpose: This project is for converting all type audio to audio.wav and spliting all file.wav into chunk, which has duration 5 seconds
+Purpose: Convert all type audio to audio.wav and split all file.wav into chunk, which has duration 5 seconds
 
 Problem: When handling to convert all audios which have long durations, it means you cannot read it and process them like normal cause of limitation of RAM, CPU...
 When I test, I realise all most libs processing good with audios which have shorter than 20 minutes.

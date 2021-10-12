@@ -120,7 +120,32 @@ class ConvertSplitAudio:
                 else:
                     self.process_audio_short_audio(each_file, self.dst_wav + '/' + each_file, new_dst_folder)
 
-
+    def audio_cutter(self, src_path, dest_path, start_seconds, end_seconds):
+        duration = self.get_duration_wav(src_path)
+        if( duration < end_seconds):
+            print(colored("end_time is greater than duration of audio, please check again", "red"))
+        elif(start_seconds < 0):
+            print('Invalid params, please check again')
+            print(colored("Working in processing.....", "red"))
+            return
+        else:
+            print(colored("Working in processing.....", "yellow"))
+            #to miliseconds
+            startTime = start_seconds*1000 - 50
+            if (startTime <= 0):
+                startTime = 0
+            endTime = end_seconds*1000 + 50
+            if(endTime > duration*1000):
+                endTime = duration
+            song = AudioSegment.from_wav(src_path)
+            extract = song[startTime:endTime]
+            extract.export(dest_path, format="wav")
+            print(colored("Completed", "yellow"))
+            
+    #Process audio with over chunks
+    def process_audio_with_chunks_overlap(self, file_name, src_path, folder_dst, overlap):
+        print('Working in process')
+        
 if __name__ == '__main__':
     convert_split = ConvertSplitAudio(src,dst_wav, dst_chunk, chunk_big_length_seconds, chunk_length_seconds)
     print(colored("Please wait.....", "green"))

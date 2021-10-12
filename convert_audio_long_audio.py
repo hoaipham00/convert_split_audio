@@ -131,10 +131,10 @@ class ConvertSplitAudio:
         else:
             print(colored("Working in processing.....", "yellow"))
             #to miliseconds
-            startTime = start_seconds*1000 - 50
+            startTime = start_seconds*1000 - 500
             if (startTime <= 0):
                 startTime = 0
-            endTime = end_seconds*1000 + 50
+            endTime = end_seconds*1000 + 500
             if(endTime > duration*1000):
                 endTime = duration
             song = AudioSegment.from_wav(src_path)

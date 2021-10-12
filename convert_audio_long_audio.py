@@ -82,7 +82,7 @@ class ConvertSplitAudio:
     def process_audio_short_audio(self, file_name, src_path, folder_dst):
         print(src_path)
         myaudio = AudioSegment.from_file(src_path, "wav") 
-        chunks = make_chunks(myaudio, self.chunk_length_seconds)
+        chunks = make_chunks(myaudio, self.chunk_length_seconds*1000)
         file_name_refactor = file_name.replace('.wav','')
         data = []
         for i, chunk in enumerate(chunks):

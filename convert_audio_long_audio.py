@@ -14,7 +14,7 @@ src = '/home/lenovo/Desktop/convert_audio_2/music'
 dst_wav = '/home/lenovo/Desktop/convert_audio_2/convert_to_wav'
 dst_chunk = '/home/lenovo/Desktop/convert_audio_2/split_5_seconds'
 chunk_length_seconds = 5 #seconds
-chunk_big_length_seconds = 3600 #seconds
+chunk_big_length_seconds = 1800 #seconds
 
 
 class ConvertSplitAudio:
@@ -54,34 +54,41 @@ class ConvertSplitAudio:
         sound.export(f'{dst_file_path}.wav', format="wav")
 
     def convert_file_folder_to_wav(self):
-        print(colored("Starting convert file to wav.....", "yellow"))
-        all_file_names = os.listdir(self.src)
-        type_audio_format = (".mp3", ".wav", ".wma", ".flac", ".alac", ".ogg", ".aiff")
-        for each_file in all_file_names:
-            # check file type 
-            src_file = f'{self.src}/{each_file}'
-            if (any(word in each_file for word in type_audio_format) or 'audio' in magic.from_file(src_file, mime=True)):
-                # rename
-                rename_file = each_file[:each_file.index(".")]
-                dst_file = f'{self.dst_wav}/{rename_file}'
-                if(self.get_duration_all(src_file) < 20.0):
-                    self.convert_file_to_wav_short_audio(src_file, dst_file)
-                else:
-                    self.convert_file_to_wav_long_audio(src_file, dst_file)
+        print(colored("Starting convert all format audios to wave.....", "yellow"))
+        try:
+            all_file_names = os.listdir(self.src)
+            type_audio_format = (".mp3", ".wav", ".wma", ".flac", ".alac", ".ogg", ".aiff")
+            for each_file in all_file_names:
+                # check file type 
+                src_file = f'{self.src}/{each_file}'
+                if (any(word in each_file for word in type_audio_format) or 'audio' in magic.from_file(src_file, mime=True)):
+                    # rename
+                    rename_file = each_file[:each_file.index(".")]
+                    dst_file = f'{self.dst_wav}/{rename_file}'
+                    if(self.get_duration_all(src_file) < 20.0):
+                        self.convert_file_to_wav_short_audio(src_file, dst_file)
+                    else:
+                        self.convert_file_to_wav_long_audio(src_file, dst_file)
+            print(colored("Finish convert all audios format to wave format", "yellow"))
+
+        except:
+            print(colored("Cannot convert all format audios to wave", "red"))
 
     def create_path_file(self, file_name, data):
-        header = ['chunk_name', 'path']
-        with open(file_name, 'w', encoding='UTF8') as f:
-            f.truncate()
-            writer = csv.writer(f)
-            writer.writerow(header)
-            for a in data:
-                writer.writerow(a)
+        try:
+            header = ['chunk_name', 'path']
+            with open(file_name, 'w', encoding='UTF8') as f:
+                f.truncate()
+                writer = csv.writer(f)
+                writer.writerow(header)
+                for a in data:
+                    writer.writerow(a)
+        except:
+            print(colored('Cannot write path file, please check and try again', 'red'))
 
     #Process for audio has duration <= 20 minutes 
     def process_audio_short_audio(self, file_name, src_path, folder_dst):
-        print(src_path)
-        myaudio = AudioSegment.from_file(src_path, "wav") 
+        myaudio = AudioSegment.from_file(src_path, "wav")
         chunks = make_chunks(myaudio, self.chunk_length_seconds*1000)
         file_name_refactor = file_name.replace('.wav','')
         data = []
@@ -92,6 +99,44 @@ class ConvertSplitAudio:
             data.append(data_chunk)
         self.create_path_file(f'{folder_dst}/{file_name_refactor}.csv', data)
     
+    #Process audio with over chunks
+    def process_audio_with_chunks_overlap(self, file_name, src_path, folder_dst):
+        print(colored(f'Processing {file_name}.....', "yellow"))
+        try:
+            SECOND_OVERLAP = 1
+            audio = AudioSegment.from_wav(src_path)
+            n = len(audio)
+            counter = 1
+            interval = 5 * 1000
+            overlap = SECOND_OVERLAP * 1000
+            start = 0
+            end = 0
+            flag = 0
+            file_name_refactor = file_name.replace('.wav','')
+            data = []
+            for i in range(0, 2 * n, interval):
+                chunk_name = f'{folder_dst}/{file_name_refactor}_split_{counter}.wav'
+                data_chunk = [f'{file_name_refactor}_{counter}.wav', chunk_name]
+                data.append(data_chunk)
+                if i == 0:
+                    start = 0
+                    end = interval
+                else:
+                    start = end - overlap
+                    end = start + interval
+                if end >= n:
+                    end = n
+                    flag = 1
+                chunk = audio[start:end]
+                chunk.export(chunk_name, format ="wav")
+                counter = counter + 1
+                if flag == 1:
+                    break
+
+            self.create_path_file(f'{folder_dst}/{file_name_refactor}.csv', data)
+        except:
+            print(colored(f'Cannot split {file_name}.....', "red"))
+
     #Process to audio has long duration
     def process_audio_long_audio(self, file_name, src_path, folder_dst):
         file_name_refactor = file_name.replace('.wav','')
@@ -106,7 +151,7 @@ class ConvertSplitAudio:
         self.create_path_file(f'{folder_dst}/{file_name_refactor}.csv', data)
 
     def split_all_audio_to_frame(self):
-        print(colored("Starting split chunk.....", "yellow"))
+        print(colored("Starting splitting chunk.....", "yellow"))
         all_file_names = os.listdir(self.dst_wav)
         for each_file in all_file_names:
             if ('.wav' in each_file):
@@ -115,11 +160,13 @@ class ConvertSplitAudio:
                 if os.path.exists(new_dst_folder) is False:
                     os.makedirs(new_dst_folder)
 
-                if(self.get_duration_wav(self.dst_wav + '/' + each_file)>=20.0):
+                if(self.get_duration_wav(self.dst_wav + '/' + each_file)>30.0):
                     self.process_audio_long_audio(each_file, self.dst_wav + '/' + each_file, new_dst_folder)
                 else:
-                    self.process_audio_short_audio(each_file, self.dst_wav + '/' + each_file, new_dst_folder)
+                    self.process_audio_with_chunks_overlap(each_file, self.dst_wav + '/' + each_file, new_dst_folder)
 
+        print(colored("Finish splitting chunk", "yellow"))
+    
     def audio_cutter(self, src_path, dest_path, start_seconds, end_seconds):
         duration = self.get_duration_wav(src_path)
         if( duration < end_seconds):
@@ -140,18 +187,16 @@ class ConvertSplitAudio:
             song = AudioSegment.from_wav(src_path)
             extract = song[startTime:endTime]
             extract.export(dest_path, format="wav")
-            print(colored("Completed", "yellow"))
-            
-    #Process audio with over chunks
-    def process_audio_with_chunks_overlap(self, file_name, src_path, folder_dst, overlap):
-        print('Working in process')
-        
+            print(colored("Completed editting audio", "yellow"))
+
 if __name__ == '__main__':
     convert_split = ConvertSplitAudio(src,dst_wav, dst_chunk, chunk_big_length_seconds, chunk_length_seconds)
+    print(colored("..............................................................", "white"))
     print(colored("Please wait.....", "green"))
     print(colored("..............................................................", "green"))
     convert_split.convert_file_folder_to_wav()
     convert_split.split_all_audio_to_frame()
     print(colored("..............................................................", "green"))
     print(colored('Completed','green'))
+    print(colored("..............................................................", "white"))
 

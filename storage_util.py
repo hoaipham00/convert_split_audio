@@ -15,6 +15,7 @@ from google.cloud import storage
 from google.cloud.storage import bucket
 from termcolor import colored
 import os
+import glob
 
 BUCKET_NAME = 'hoai_try'
 
@@ -51,11 +52,21 @@ class GoogleStorageUtil():
         print(f"Versioning Enabled: {bucket.versioning_enabled}")
         print(f"Labels: {bucket.labels}")
     
-    def upload(self, src_path_upload, dest_path_upload, blob_name):
+    def upload(self, src_path_upload, dest_path_upload, dest_blob_name):
         bucket = self.storage_client.get_bucket(dest_path_upload)
-        blob = bucket.blob(blob_name)
+        blob = bucket.blob(dest_blob_name)
         #load from local
         blob.upload_from_filename(src_path_upload)
+
+    def upload_dir(self, src_dir_upload, dest_dir_name):
+        rel_paths = glob.glob(src_dir_upload + '/**', recursive=True)
+        bucket = self.storage_client.get_bucket(self.bucket_name)
+        for local_file in rel_paths:
+            remote_path = f'{dest_dir_name}/{"/".join(local_file.split(os.sep)[1:])}'
+            print(remote_path)
+            if os.path.isfile(local_file):
+                blob = bucket.blob(remote_path)
+                blob.upload_from_filename(local_file)
 
     def get_object_in_bucket(self):
         bucket = self.storage_client.get_bucket(self.bucket_name)
@@ -94,6 +105,8 @@ if __name__ == '__main__':
     gcs_util = GoogleStorageUtil(BUCKET_NAME)
     print(colored("Please wait.....", "green"))
     print(colored("..............................................................", "green"))
-    gcs_util.get_bucket_metadata_by_name()
+    src_dir_upload = '/home/lenovo/Desktop/convert_audio_2/gcs_test'
+    dest_dir_upload = ''
+    gcs_util.upload_dir(src_dir_upload, dest_dir_upload)
     print(colored("..............................................................", "green"))
     print(colored('Completed','green'))

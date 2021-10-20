@@ -16,6 +16,9 @@ from google.cloud.storage import bucket
 from termcolor import colored
 import os
 import glob
+import datetime;
+import math
+import subprocess
 
 BUCKET_NAME = 'hoai_try'
 
@@ -24,10 +27,53 @@ class GoogleStorageUtil():
         self.bucket_name = bucket_name
         self.storage_client = storage.Client()
 
-    def get_list_buckets(self):
-        buckets = list(self.storage_client.list_buckets())
-        for bucket in buckets:
-            print(type(bucket))
+    def pretty_response(self, blob):
+        if(blob.metadata is not None):
+            return {
+                'id': blob.metadata.get('gen_id'),
+                'path': blob.name,
+                'name': blob.name,
+                'owner': blob.metadata.get('owner'),
+                'last_updated': blob.metadata.get('last_updated'),
+                'size': blob.size
+            }
+        else:
+            return {
+                'id': blob.id,
+                'path': blob.name,
+                'name': blob.name,
+                'owner': blob.owner,
+                'last_updated': blob.updated,
+                'size': blob.size
+            } 
+
+    def get_list_blobs(self):
+        blobs = self.storage_client.list_blobs(self.bucket_name)
+        list_blobs_name = []
+        for blob in blobs:
+            list_blobs_name.append(self.pretty_response(blob))
+        return list_blobs_name
+
+    def get_list_blobs_with_prefix(self, prefix, delimiter=None):
+            # If you specify prefix ='a/', without a delimiter, you'll get back:
+
+            #   a/1.txt
+            #   a/b/2.txt
+
+            # However, if you specify prefix='a/' and delimiter='/', you'll get back
+            # only the file directly under 'a/':
+            #     a/1.txt
+
+        blobs = self.storage_client.list_blobs(self.bucket_name, prefix=prefix, delimiter=delimiter)
+        list_blobs_name = []
+        for blob in blobs:
+            # print(blob.metadata)
+            if(blob.metadata is not None):
+                list_blobs_name.append(blob.metadata)
+            else:
+                list_blobs_name.append({})
+        return list_blobs_name
+
 
     def get_bucket_metadata_by_name(self):
         bucket = self.storage_client.get_bucket(self.bucket_name)
@@ -52,42 +98,111 @@ class GoogleStorageUtil():
         print(f"Versioning Enabled: {bucket.versioning_enabled}")
         print(f"Labels: {bucket.labels}")
     
-    def upload(self, src_path_upload, dest_path_upload, dest_blob_name):
-        bucket = self.storage_client.get_bucket(dest_path_upload)
-        blob = bucket.blob(dest_blob_name)
-        #load from local
-        blob.upload_from_filename(src_path_upload)
+    def set_blob_metadata(self, blob_name, user_name, id):
+        try:
+            # save as timestamp unix
+            ts = math.floor(datetime.datetime.now().timestamp())
 
-    def upload_dir(self, src_dir_upload, dest_dir_name):
-        rel_paths = glob.glob(src_dir_upload + '/**', recursive=True)
-        bucket = self.storage_client.get_bucket(self.bucket_name)
-        for local_file in rel_paths:
-            remote_path = f'{dest_dir_name}/{"/".join(local_file.split(os.sep)[1:])}'
-            print(remote_path)
-            if os.path.isfile(local_file):
-                blob = bucket.blob(remote_path)
-                blob.upload_from_filename(local_file)
+            #use this to convert timestamp to datetime
+            # datetime.datetime.utcfromtimestamp(ts).strftime('%Y-%m-%dT%H:%M:%SZ')
+            metadata = {
+                'gen_id': id, 
+                'name': blob_name,
+                'owner': user_name,
+                'last_updated': ts  
+                }
+            return metadata
+        except Exception as error:
+            print('Caught this error: ' + repr(error))
 
-    def get_object_in_bucket(self):
-        bucket = self.storage_client.get_bucket(self.bucket_name)
-        for blob in bucket.list_blobs():
-            print(blob.name, blob.size)
-    
+    def edit_blob(self, blob_name, id):
+        try:
+            bucket = self.storage_client.bucket(self.bucket_name)
+            blob = bucket.get_blob(blob_name)
+            blob.metadata = self.set_blob_metadata(blob_name=blob_name, user_name='hoaipham', id=id)
+            blob.patch()
+        except Exception as error:
+            print('Cannot update metadata of blob cause: ' + repr(error))
+
+    def upload_blob(self, src_path_upload, dest_blob, id):
+        try:
+            bucket = self.storage_client.get_bucket(self.bucket_name)
+            blob = bucket.blob(dest_blob)
+            blob.metadata = self.set_blob_metadata(blob_name=dest_blob, user_name='hoaipham', id=id)
+            #load from local
+            blob.upload_from_filename(src_path_upload)
+        except Exception as error:
+            print('Cannot upload blob cause: ' + repr(error))
+
+    def upload_dir(self, src_dir_upload, dest_dir_bucket):
+        # rel_paths = glob.glob(src_dir_upload + '/**', recursive=True)
+        # bucket = self.storage_client.get_bucket(self.bucket_name)
+        # for local_file in rel_paths:
+        #     remote_path = f'{dest_dir_name}/{"/".join(local_file.split(os.sep)[1:])}'
+        #     if os.path.isfile(local_file):
+        #         blob = bucket.blob(remote_path)
+        #         blob.metadata = self.set_blob_metadata(blob_name=remote_path, user_name='hoaipham')
+        #         blob.upload_from_filename(local_file)
+
+        try:
+            command = f'gsutil -m cp -r dir {src_dir_upload} {dest_dir_bucket}'
+            subprocess.run(command, shell=True)
+        except Exception as error:
+            print('Cannot upload entire directory cause ' + repr(error))
+
+
+    # blob_name = 'your-object-name'
+    def get_blob_metadata(self, blob_name):
+        bucket = self.storage_client.bucket(self.bucket_name)
+        blob = bucket.get_blob(blob_name)
+
+        print("Blob: {}".format(blob.name))
+        print("Bucket: {}".format(blob.bucket.name))
+        print("Storage class: {}".format(blob.storage_class))
+        print("ID: {}".format(blob.id))
+        print("Size: {} bytes".format(blob.size))
+        print("Updated: {}".format(blob.updated))
+        print("Generation: {}".format(blob.generation))
+        print("Metageneration: {}".format(blob.metageneration))
+        print("Etag: {}".format(blob.etag))
+        print("Owner: {}".format(blob.owner))
+        print("Component count: {}".format(blob.component_count))
+        print("Crc32c: {}".format(blob.crc32c))
+        print("md5_hash: {}".format(blob.md5_hash))
+        print("Cache-control: {}".format(blob.cache_control))
+        print("Content-type: {}".format(blob.content_type))
+        print("Content-disposition: {}".format(blob.content_disposition))
+        print("Content-encoding: {}".format(blob.content_encoding))
+        print("Content-language: {}".format(blob.content_language))
+        print("Metadata: {}".format(blob.metadata))
+        print("Custom Time: {}".format(blob.custom_time))
+        print("Temporary hold: ", "enabled" if blob.temporary_hold else "disabled")
+        print(
+            "Event based hold: ",
+            "enabled" if blob.event_based_hold else "disabled",
+        )
+        if blob.retention_expiration_time:
+            print(
+                "retentionExpirationTime: {}".format(
+                    blob.retention_expiration_time
+                )
+            )
+
+        return self.pretty_response(blob)
+
     def dowload_object_blob(self, src_path_blob, dst_path):
         # can use gsutil, example: 
         # gsutil cp gs://hoai_try/demo2.py C:/Users/ADMIN/Desktop/grokking_lab/tryyy/tenten/
-
         bucket = self.storage_client.get_bucket(self.bucket_name)
         blob = bucket.blob(src_path_blob)
         blob.download_to_filename(dst_path)
 
-    def download_dir(self, dst_dir_local):
-        prefix = '/'
-        bucket = self.storage_client.get_bucket(self.bucket_name)
-        blobs = bucket.list_blobs(prefix=prefix)  # Get list of files
-        for blob in blobs:
-            filename = blob.name.replace('/', '_') 
-            blob.download_to_filename(dst_dir_local + filename)
+    def download_dir(self, src_dir_bucket, dst_dir_local):
+        try:
+            command = f'gsutil -m cp -r dir {src_dir_bucket} {dst_dir_local}'
+            subprocess.run(command, shell=True)
+        except Exception as error:
+            print('Cannot download entire bucket cause ' + repr(error))
 
     def delete_blob(self, blob_path):
         bucket = self.storage_client.bucket(self.bucket_name)
@@ -101,12 +216,22 @@ class GoogleStorageUtil():
         for blob in blobs:
             blob.delete()
 
-if __name__ == '__main__':
-    gcs_util = GoogleStorageUtil(BUCKET_NAME)
-    print(colored("Please wait.....", "green"))
-    print(colored("..............................................................", "green"))
-    src_dir_upload = '/home/lenovo/Desktop/convert_audio_2/gcs_test'
-    dest_dir_upload = ''
-    gcs_util.upload_dir(src_dir_upload, dest_dir_upload)
-    print(colored("..............................................................", "green"))
-    print(colored('Completed','green'))
+# if __name__ == '__main__':
+#     gcs_util = GoogleStorageUtil(BUCKET_NAME)
+#     print(colored("Please wait.....", "green"))
+#     print(colored("..............................................................", "green"))
+#     # src_dir_upload = '/home/lenovo/Desktop/convert_audio_2/gcs_test'
+#     src_dir_upload = '/home/lenovo/Desktop/convert_audio_2/convert_to_wav/duongtoichoemve.wav'
+#     dest_dir_upload = 'music/duongtoichoemve2.mp3'
+#     # gcs_util.upload_dir(src_dir_upload, dest_dir_upload)
+#     blob_name = 'music/bc3ae13d-8c3f-4614-a26b-4c4fb8b9128a.wav'
+
+#     path_save_local = '/home/lenovo/Desktop/convert_audio_2/download/'
+#     gcs_util.download_dir(path_save_local)
+
+#     # gcs_util.upload(src_dir_upload, dest_dir_upload)
+
+#     # gcs_util.get_blob_metadata(blob_name)
+#     # gcs_util.get_list_blobs()
+#     print(colored("..............................................................", "green"))
+#     print(colored('Completed','green'))

@@ -159,7 +159,6 @@ class ConvertSplitAudio:
                 new_dst_folder = self.dst_chunk + '/' + file_name
                 if os.path.exists(new_dst_folder) is False:
                     os.makedirs(new_dst_folder)
-
                 if(self.get_duration_wav(self.dst_wav + '/' + each_file)>30.0):
                     self.process_audio_long_audio(each_file, self.dst_wav + '/' + each_file, new_dst_folder)
                 else:
@@ -188,15 +187,3 @@ class ConvertSplitAudio:
             extract = song[startTime:endTime]
             extract.export(dest_path, format="wav")
             print(colored("Completed editting audio", "yellow"))
-
-if __name__ == '__main__':
-    convert_split = ConvertSplitAudio(src,dst_wav, dst_chunk, chunk_big_length_seconds, chunk_length_seconds)
-    print(colored("..............................................................", "white"))
-    print(colored("Please wait.....", "green"))
-    print(colored("..............................................................", "green"))
-    convert_split.convert_file_folder_to_wav()
-    convert_split.split_all_audio_to_frame()
-    print(colored("..............................................................", "green"))
-    print(colored('Completed','green'))
-    print(colored("..............................................................", "white"))
-

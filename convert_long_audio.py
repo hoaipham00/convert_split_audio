@@ -10,11 +10,11 @@ import mutagen
 import audioread
 
 
-src = '/home/lenovo/Desktop/convert_audio_2/music'
-dst_wav = '/home/lenovo/Desktop/convert_audio_2/convert_to_wav'
-dst_chunk = '/home/lenovo/Desktop/convert_audio_2/split_5_seconds'
-chunk_length_seconds = 5 #seconds
-chunk_big_length_seconds = 1800 #seconds
+# src = '/home/lenovo/Desktop/convert_audio_2/music'
+# dst_wav = '/home/lenovo/Desktop/convert_audio_2/convert_to_wav'
+# dst_chunk = '/home/lenovo/Desktop/convert_audio_2/split_5_seconds'
+# chunk_length_seconds = 5 #seconds
+# chunk_big_length_seconds = 1800 #seconds
 
 
 class ConvertSplitAudio:

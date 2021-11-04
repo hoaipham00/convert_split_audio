@@ -21,9 +21,9 @@ class AudioMetadata():
             limit = 10
             if(page == 0):
                 offset = 0
-                limit = limit - 1
-            result = sorted(self.db_connection.all()[offset:offset + limit], key=lambda k: k['id'])
-            return result
+            result = self.db_connection.search(self.audio_query.is_visible == True)
+            total_record = len(self.db_connection)
+            return result[offset:offset + limit], total_record
         except Exception as error:
             print('Cannot get docs cause ' + repr(error))
         
@@ -42,18 +42,24 @@ class AudioMetadata():
             limit = 10
             if(page == 0):
                 offset = 0
-                limit = limit - 1
-                
-            if(fields_dict['name'] is not None or fields_dict['owner'] is not None):
-                for name in fields_dict['name']:
-                    result_names = self.db_connection.search(self.audio_query.name == name)
-                    result = result + result_names
-                for owner in fields_dict['owner']:
-                    result_owner = self.db_connection.search(self.audio_query.owner== owner)
-                    result = result + result_owner
-            else:
+            if(fields_dict['name'] is not None and fields_dict['owner'] is None):
+                result = self.db_connection.search(self.audio_query.name == fields_dict['name'])
+                result = [x for x in result if x['is_visible'] == True]
+
+            if(fields_dict['owner'] is not None and fields_dict['name'] is None):
+                result = self.db_connection.search(self.audio_query.owner == fields_dict['owner'])
+                result = [x for x in result if x['is_visible'] == True]
+
+            if (fields_dict['owner'] is None and fields_dict['name'] is None):
                 result = self.db_connection.all()
-            return result[offset:offset+ limit]
+                result = [x for x in result if x['is_visible'] == True]
+
+            if (fields_dict['owner'] is not None and fields_dict['name'] is not None):
+                result = self.db_connection.search(self.audio_query.name == fields_dict['name'])
+                result = [x for x in result if x['owner'] == fields_dict['owner'] and x['is_visible'] == True]
+
+            total_record = len(result)
+            return result[offset:offset+ limit], total_record
         except Exception as error:
             print('Cannot search by fields cause ' + repr(error))
 
@@ -65,34 +71,19 @@ class AudioMetadata():
 
     def update_to_db(self, data):
         try:
-            self.db_connection.update(data)
+            id = data.get('id')
+            self.db_connection.update(data, self.audio_query.id == id)
         except Exception as error:
             print('Cannot update to db cause ' + repr(error)) 
 
-    def delete_to_db(self, data):
+    def delete_to_db(self, id):
         try:
-            id = data.get('id')
-            self.db_connection.remove(where('id') == id)
+            list_search = self.db_connection.search(self.audio_query.id == id)
+            # for audio in list_search:
+            #     audio['is_visible'] = False
+            self.db_connection.update({'is_visible': False},  self.audio_query.id == id)
+
         except Exception as error:
             print('Cannot delete cause ' + repr(error)) 
-
-# if __name__ == '__main__':
-
-#     db_metadata_audio = AudioMetadata(database, table, database_connection_string)
-#     print(colored("..............................................................", "white"))
-#     print(colored("Please wait.....", "green"))
-#     print(colored("..............................................................", "green"))
-#     data = {'int': 6, 'char': 'd'}
-
-
-#     fields_dict = {'name': ['a'], 'owner': ['suonghoang', 'haodo']}
-#     result = db_metadata_audio.get_by_id('bc3ae13d-8c3f-4614-a26b-4c4fb8b9128a')
-#     print(result)
-    # for i in result:
-    #     print(i)
-
-#     print(colored("..............................................................", "green"))
-#     print(colored('Completed','green'))
-#     print(colored("..............................................................", "white"))
 
     

@@ -5,17 +5,17 @@ from google.resumable_media import requests
 import tinydb
 from gcs_util import GoogleStorageUtil
 from tinydb_util import AudioMetadata
-from convert_long_audio import ConvertSplitAudio
+from convert_long_audio_ogg import ConvertSplitAudioOGG
 import json
 import uuid
 from requests.exceptions import Timeout
-from scipy.io import wavfile
 import math
 import datetime
 import os
 import glob
 from flask_cors import CORS
 from pydub import AudioSegment
+import subprocess
 import io
 
 BUCKET_NAME = 'hoai_try'
@@ -30,14 +30,14 @@ TABLE = ''
 SOURCE_SPLIT = '/home/lenovo/Desktop/convert_audio_2/music'
 
 BIG_CHUNK_AUDIO_SECONDS = 1800
-FOLDER_DST_WAV = '/home/lenovo/Desktop/convert_audio_2/convert_to_wav'
+FOLDER_DST_OGG = '/home/lenovo/Desktop/convert_audio_2/convert_to_ogg'
 
 SMALL_CHUNK_AUDIO_SECONDS = 5
 FOLDER_DST_CHUNK = '/home/lenovo/Desktop/convert_audio_2/split_5_seconds'
 
 gcs_util = GoogleStorageUtil(BUCKET_NAME)
 db_metadata_audio = AudioMetadata(DATABASE, TABLE, DATABASE_CONNECTION_STRING)
-convert_split = ConvertSplitAudio(SOURCE_SPLIT, FOLDER_DST_WAV, FOLDER_DST_CHUNK, BIG_CHUNK_AUDIO_SECONDS, SMALL_CHUNK_AUDIO_SECONDS)
+convert_split = ConvertSplitAudioOGG(SOURCE_SPLIT, FOLDER_DST_OGG, FOLDER_DST_CHUNK, BIG_CHUNK_AUDIO_SECONDS, SMALL_CHUNK_AUDIO_SECONDS)
 
 app = Flask(__name__)
 CORS(app)
@@ -107,8 +107,8 @@ def search_audio():
 
 def fill_full_metadata_audio(audio_info, audio_file, dest_upoad, id_parent, start_cutter, end_cutter):
     id = str(uuid.uuid4())
-    save_path = SAVE_PATH + f'/{id}.wav'
-    dest_upload = f'{dest_upoad}/{id}.wav'
+    save_path = SAVE_PATH + f'/{id}.ogg'
+    dest_upload = f'{dest_upoad}/{id}.ogg'
     audio_file.save(save_path)
     audio_from_file = AudioSegment.from_file(save_path)
     audio_info['id']= id
@@ -119,13 +119,14 @@ def fill_full_metadata_audio(audio_info, audio_file, dest_upoad, id_parent, star
     audio_info['id_parent'] = id_parent
     audio_info['start_cut'] = start_cutter
     audio_info['duration'] = audio_from_file.duration_seconds
+
     if(end_cutter == audio_info['duration'] or end_cutter == 0):
         audio_info['end_cut'] = audio_from_file.duration_seconds
         
     else:
         start = int(start_cutter)*1000
         end = int(end_cutter)*1000
-        audio_from_file[start:end].export(save_path, format="wav")
+        audio_from_file[start:end].export(save_path, format="ogg")
 
     return save_path, dest_upload, audio_info
 
@@ -153,7 +154,7 @@ def edit_audio_blob():
         if request.method == 'POST':
             # get data json from form body
             id = str(uuid.uuid4())
-            dest_upload = f'{SPLIT_BUCKET}/{id}.wav'
+            dest_upload = f'{SPLIT_BUCKET}/{id}.ogg'
             audio_file = request.files['audio-blob']
             audio_info = json.loads(request.form.get('info').replace("'",'"'))
 
@@ -202,7 +203,7 @@ def edit_audio_blob():
 #             if(destination is None):
 #                 destination = f'gs://{BUCKET_NAME}'
 
-#             files = glob.glob(f'{source_to_upload}/**/*.wav', recursive = True)
+#             files = glob.glob(f'{source_to_upload}/**/*.ogg', recursive = True)
 #             list_names = []
 #             for file in files:
 #                 split_array = file.split('/')
@@ -234,27 +235,20 @@ def edit_audio_blob():
 #                 src_slice = SOURCE_SPLIT
 #             if(dst_slice is None):
 #                 dst_slice = FOLDER_DST_CHUNK
-#             convert_split.convert_file_folder_to_wav()
-#             convert_split.split_all_audio_to_frame()
+#             convert_split.convert_file_folder_to_ogg()
+#             convert_split.split_all_audio_to_frame(SMALL_CHUNK_AUDIO_SECONDS)
 #             return jsonify({'status': 'success to split audio'})
 #     except Exception as error:
 #         return jsonify({'status': 'failed to split', 'error': error})
 #         print('Cannot split audio cause ' + repr(error))
 
-
-def add_info_metadata_split_audio(origin_metadata, file_name, folder_name, folder_dest_upload):
+# this is for metadata audio split
+def add_info_metadata_split_audio(index, name, origin_metadata, file_name, folder_name, folder_dest_upload):
     audio_metadata_object = origin_metadata
-    audio_metadata_object['name'] = ''
-    
-    audio_name = file_name
-    postfix_name = audio_name.replace(origin_metadata.get('id'), "")
-    prefix_name = origin_metadata.get('name')
-
     # file name in local
     id = file_name
-    audio_name = audio_name.replace(origin_metadata.get('id'), "")
-    audio_metadata_object['name'] = f'{prefix_name}{postfix_name}'
-    audio_metadata_object['id'] = id.replace('.wav','')
+    audio_metadata_object['name'] = f'{name}_split_{index}'
+    audio_metadata_object['id'] = id.replace('.ogg','')
     audio_metadata_object['last_updated'] = math.floor(datetime.datetime.now().timestamp())
     audio_metadata_object['path'] = f'{folder_dest_upload}/{folder_name}/{file_name}'
     audio_metadata_object['url_path'] = f'https://storage.googleapis.com/{BUCKET_NAME}/{SPLIT_BUCKET}/{folder_name}/{file_name}'
@@ -274,24 +268,28 @@ def split_audio():
             username = body.get('username')
             id = body.get('id')
             blob_path = body.get('path')
+            name = body.get('name')
+
 
             # only use below func for python>=3.9
             blob_path_without_bucket = blob_path.removeprefix(f'gs://{BUCKET_NAME}/')
-            dest_path = f'{SOURCE_SPLIT}/{id}.wav'
+            dest_path = f'{SOURCE_SPLIT}/{id}.ogg'
             folder_dst = f'{id}_split'
             folder_source_upload = f'{FOLDER_DST_CHUNK}/{folder_dst}'
             folder_dest_upload = f'gs://hoai_try/{SPLIT_BUCKET}'
             gcs_util.dowload_object_blob(blob_path, dest_path)
-            convert_split.convert_file_folder_to_wav()
-            convert_split.split_all_audio_to_frame()
+            convert_split.convert_file_folder_to_ogg()
+
+            convert_split.split_all_audio_to_frame(SMALL_CHUNK_AUDIO_SECONDS)
             
             gcs_util.upload_dir(folder_source_upload, folder_dest_upload)
 
             # upload_to_database
             list_files_name = os.listdir(folder_source_upload)
-            for each_file in list_files_name:
-                if (".wav" in each_file):
-                    audio_metadata_object = add_info_metadata_split_audio(body, each_file,folder_dst, folder_dest_upload)
+
+            for idx, each_file in enumerate(list_files_name):
+                if (".ogg" in each_file):
+                    audio_metadata_object = add_info_metadata_split_audio(idx, name, body, each_file, folder_dst, folder_dest_upload)
                     db_metadata_audio.insert_to_db(audio_metadata_object)
 
             return jsonify({'status': 'success to split audio'})
@@ -299,39 +297,55 @@ def split_audio():
         return jsonify({'status': 'failed to split', 'error': error})
         print('Cannot split audio cause ' + repr(error))
 
+def update_metadata_audio(audio_source_path, origin_metadata):
+    audio_from_file = AudioSegment.from_ogg(audio_source_path)
+    duration = audio_from_file.duration_seconds
+    origin_metadata['duration'] = duration
+    origin_metadata['is_visible'] = True
+    origin_metadata['last_updated'] = math.floor(datetime.datetime.now().timestamp())
+    return origin_metadata
 
-@app.route('/split-multiple-audio', methods=['POST'])
-def split_multiple_audios():
+
+@app.route('/edit-multiple-audio', methods=['POST'])
+def edit_multiple_audios():
     try:
         if request.method == 'POST':
             body = json.loads(request.get_data().replace(b"'", b'"'))
-            # body = json.loads(request.get_data().replace(b"'", b'"'))
-            # print(list_audios)
             list_audios = body.get('list')
             for audio in list_audios:
                 id = audio.get('id')
                 blob_path = audio.get('path')
 
                 # only use below func for python>=3.9
-                blob_path_without_bucket = blob_path.removeprefix(f'gs://{BUCKET_NAME}/')
-                dest_path = f'{SOURCE_SPLIT}/{id}.wav'
+                # blob_path_without_bucket = blob_path.removeprefix(f'gs://{BUCKET_NAME}/')
+
+                dest_path = f'{SOURCE_SPLIT}/{id}.ogg'
                 folder_dst = f'{id}_split'
-                folder_source_upload = f'{FOLDER_DST_CHUNK}/{folder_dst}'
-                folder_dest_upload = f'gs://hoai_try/{SPLIT_BUCKET}'
+                # download blob
                 gcs_util.dowload_object_blob(blob_path, dest_path)
-                convert_split.convert_file_folder_to_wav()
-                convert_split.split_all_audio_to_frame()
-            
-                gcs_util.upload_dir(folder_source_upload, folder_dest_upload)
+                # convert to format file ogg
+                src_ogg = f'{SOURCE_SPLIT}/{id}.ogg'
+                if('.ogg' not in blob_path):
+                    convert_split.convert_file_folder_to_ogg()
+                    src_ogg = f'{FOLDER_DST_OGG}/{id}.ogg'
+
+                dst_split = f'{FOLDER_DST_CHUNK}/{folder_dst}.ogg'
+                dst_upload = audio.get('path')
+                # cut audio
+                convert_split.audio_cutter(src_ogg, dst_split, audio.get('start_cut'), audio.get('end_cut'))
+
+                # before upload, delete blob
+                gcs_util.delete_blob_by_gsutil(blob_path)
+                # upload to gcs
+                gcs_util.upload_blob_by_gsutil(dst_split, dst_upload)
 
                 # upload_to_database
-                list_files_name = os.listdir(folder_source_upload)
-                for each_file in list_files_name:
-                    if (".wav" in each_file):
-                        audio_metadata_object = add_info_metadata_split_audio(audio, each_file, folder_dst, folder_dest_upload)
-                        db_metadata_audio.insert_to_db(audio_metadata_object)
+                metadata = update_metadata_audio(dst_split, audio)
+                db_metadata_audio.update_to_db(metadata)
+
+
                     
-            return jsonify({'status': 'success to split audio'})
+            return jsonify({'status': 'success to split multiple audios'})
     except Exception as error:
         return jsonify({'status': 'failed to split', 'error': error})
         print('Cannot split audio cause ' + repr(error))
